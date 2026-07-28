@@ -46,13 +46,14 @@ See **AI_RECOMMENDATION_GUIDE.md** for complete documentation.
 ├── model_utils.py                  # XGBoost model loading and prediction
 ├── energy_recommendation_agent.py  # AI-powered battery recommendation agent
 ├── best_model_exogenous.pkl        # Fine-tuned XGBoost model (trained)
-├── project_scaler.pkl              # Feature scaler for preprocessing
 ├── BDDsfax.xlsx                    # Training dataset (Sfax, Tunisia)
-├── projet_ML (1).ipynb             # ML model development notebook
+├── notebooks/
+│   └── model_training.ipynb        # ML model development notebook
+├── assets/
+│   └── logo.png                    # Dashboard logo
 ├── AI_RECOMMENDATION_GUIDE.md       # AI agent integration documentation
-├── .env                            # Environment variables (API keys)
+├── .env                            # Environment variables (API keys, gitignored)
 ├── requirements.txt                # Python dependencies
-├── logo white.png                  # Dashboard logo
 ├── .gitignore                      # Git ignore rules
 └── README.md                       # This file
 ```
@@ -227,7 +228,7 @@ Dashboard opens at: `http://localhost:8501`
 ## 📚 Development & Training
 
 ### Jupyter Notebook
-The ML model development is documented in `projet_ML (1).ipynb`:
+The ML model development is documented in `notebooks/model_training.ipynb`:
 - Data exploration and preprocessing
 - Feature engineering
 - Model training and evaluation
@@ -239,7 +240,7 @@ The ML model development is documented in `projet_ML (1).ipynb`:
 - **Variables**: Temperature, humidity, wind, irradiance, power output
 
 To retrain the model:
-1. Open `projet_ML (1).ipynb` in Jupyter
+1. Open `notebooks/model_training.ipynb` in Jupyter
 2. Update training parameters if needed
 3. Run all cells to train XGBoost
 4. Export model as `best_model_exogenous.pkl`
@@ -309,7 +310,7 @@ Install all: `pip install -r requirements.txt`
 ### "Model not loaded"
 **Solution**: Ensure `best_model_exogenous.pkl` exists in project root
 - Check file exists: `ls *.pkl`
-- Retrain if missing using `projet_ML (1).ipynb`
+- Retrain if missing using `notebooks/model_training.ipynb`
 
 ### "WEATHER_API_KEY not set"
 **Solution**: 
@@ -331,9 +332,14 @@ Install all: `pip install -r requirements.txt`
 
 Project for solar forecasting and energy management.
 
-## 👥 Authors
+## 👥 Authors & History
 
-Created for solar energy research and production forecasting.
+Originally built as a personal project during a summer 2025 internship. The
+codebase has since been reworked (repo hygiene, file organization, dead
+config cleanup, UI fixes) and republished here under my own account, since
+the original commit history wasn't attributed to it.
+
+Built by Mohamed Adam Ghorbel.
 
 ---
 
@@ -408,7 +414,7 @@ Expected Accuracy: ±0.26 kW (based on test MAE)
 ## 📚 Documentation Files
 
 - **README.md** (this file) - Complete usage guide
-- **projet_ML (1).ipynb** - ML model training and validation
+- **notebooks/model_training.ipynb** - ML model training and validation
 - **config.py** - All configuration constants
 - **Code comments** - Inline documentation
 

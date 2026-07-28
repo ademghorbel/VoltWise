@@ -18,7 +18,6 @@ WEATHER_FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
 
 # Model Configuration
 MODEL_PATH = "project_model.pkl"
-SCALER_PATH = "project_scaler.pkl"
 
 # Feature columns as they appear in training data
 FEATURE_COLUMNS_TIMESTAMP_ONLY = [
@@ -46,7 +45,3 @@ WEATHER_CONDITIONS = {
 IRRADIATION_THRESHOLD_HIGH = 500  # W/m²
 IRRADIATION_THRESHOLD_MEDIUM = 200  # W/m²
 TEMPERATURE_RANGE = (5, 45)  # Optimal temperature range in Celsius
-
-
-
-

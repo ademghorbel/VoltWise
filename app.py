@@ -3,6 +3,7 @@ Voltwise - Solar PV Production Dashboard
 Real-time solar production forecasting with AI-powered battery management
 """
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Reload environment variables
@@ -82,7 +83,13 @@ def main():
     """Main dashboard application"""
     
     # Header
-    st.title("Voltwise")
+    logo_col, title_col = st.columns([1, 8])
+    with logo_col:
+        logo_path = Path(__file__).parent / "assets" / "logo.png"
+        if logo_path.exists():
+            st.image(str(logo_path), width=64)
+    with title_col:
+        st.title("Voltwise")
     st.markdown("**AI-Powered Solar Energy & Battery Management Dashboard**")
     
     # Initialize components
