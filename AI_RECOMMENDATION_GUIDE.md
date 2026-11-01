@@ -24,7 +24,7 @@ A sophisticated AI agent that:
 
 ### 2. **Battery Storage Configuration**
 
-In the sidebar, you can now:
+Under the search bar, open "Battery storage (optional)" to:
 - ✅ **Enable Battery Storage** - Toggle battery management features
 - 📊 **Set Battery Capacity** - Define total kWh storage (1-100 kWh)
 - 🔋 **Current Battery Level** - Adjust current charge percentage
@@ -40,8 +40,8 @@ Example Configuration:
 
 ### 3. **AI Recommendation Button**
 
-After fetching weather data, click **"💡 Get AI Recommendation"** to:
-1. Send weather forecast + battery data to Olmo Model AI
+After fetching weather data, click **"Get AI Recommendation"** to:
+1. Send weather forecast + battery data to a free OpenRouter model (with automatic fallback)
 2. Get detailed expert analysis
 3. Receive actionable recommendation: **CHARGE**, **DISCHARGE**, or **MAINTAIN**
 
@@ -61,12 +61,12 @@ The AI provides:
 Add your OpenRouter API key to your `.env` file:
 ```
 OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_MODEL=allenai/olmo-3.1-32b-think:free
+OPENROUTER_MODEL=nvidia/nemotron-3.5-lightning:free
 ```
 Get your free API key from: [OpenRouter.ai](https://openrouter.ai/keys)
 
 ### Step 2: Configure Battery Storage
-1. Enable **"🔋 Enable Battery Storage"** in sidebar
+1. Open **"Battery storage (optional)"** under the search bar and tick **"I have battery storage"**
 2. Set your battery specifications:
    - Total capacity in kWh
    - Current charge level (%)
@@ -148,14 +148,13 @@ Timing: Monitor conditions hourly, be ready to switch strategies
 
 ### Environment Variables (.env)
 ```
-WEATHER_API_KEY=your_openweathermap_key
 OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_MODEL=allenai/olmo-3.1-32b-think:free
+OPENROUTER_MODEL=nvidia/nemotron-3.5-lightning:free
 ```
 
 ### API Providers
-- **Weather Data**: [OpenWeatherMap](https://openweathermap.org/api) (Free tier: 1,000 calls/day)
-- **AI Recommendations**: [OpenRouter.ai](https://openrouter.ai) (Free tier: $5 monthly credits)
+- **Weather Data**: [Open-Meteo](https://open-meteo.com) (free, no key)
+- **AI Recommendations**: [OpenRouter.ai](https://openrouter.ai) (free models ending in `:free`)
 
 ## Features in Detail
 
@@ -249,7 +248,7 @@ Hour | Temp(°C) | Cloud% | Wind(m/s) | Condition | Humidity%
 
 - [OpenRouter.ai Documentation](https://openrouter.ai/docs)
 - [OpenRouter API Guide](https://openrouter.ai/docs/guides)
-- [OpenWeatherMap API](https://openweathermap.org/api)
+- [Open-Meteo API](https://open-meteo.com/en/docs)
 - [Streamlit Documentation](https://docs.streamlit.io/)
 
 ---

@@ -5,9 +5,9 @@ A real-time solar power production forecasting application with interactive weat
 ## 📋 Project Overview
 
 This project provides:
-- **Real-time weather data** integration from OpenWeatherMap API
+- **Real-time weather data** from Open-Meteo (free, no API key needed)
 - **ML-powered solar production forecasts** using fine-tuned XGBoost model with exogenous features
-- **Interactive Streamlit dashboard** with live charts and analytics
+- **Interactive Streamlit dashboard** with live charts and analytics, in a dark lemon-noir theme
 - **24-hour production forecasts** with weather correlation analysis
 
 **Status**: ✅ Fully operational with trained XGBoost model + AI-powered battery recommendations
@@ -19,17 +19,17 @@ This project provides:
 The dashboard now includes an **intelligent AI-powered battery management system** powered by OpenRouter API:
 
 ### 🤖 Key Features
-- **Expert AI Analysis**: Uses advanced LLM (OLMo-3.1-32B) with persona prompting as energy analyst
+- **Expert AI Analysis**: Uses free OpenRouter LLMs with persona prompting as energy analyst, falling back to the next free model when one is busy
 - **Weather-Based Recommendations**: Analyzes 24-hour forecasts to suggest CHARGE/DISCHARGE/MAINTAIN
 - **Battery Optimization**: Considers capacity, current level, consumption patterns, and weather conditions
 - **Confidence Levels**: Provides High/Medium/Low confidence based on forecast certainty
 - **Detailed Reasoning**: Full explanation of decision logic with specific numbers and considerations
 
 ### 📚 Usage
-1. Enable **"🔋 Battery Storage"** in sidebar
+1. Open **"Battery storage (optional)"** under the search bar and tick **"I have battery storage"**
 2. Configure battery capacity, level, and daily consumption
-3. Fetch weather data for your location
-4. Click **"💡 Get AI Recommendation"** button
+3. Type your city and country code, then click **"Fetch forecast"** (or press Enter)
+4. Click **"Get AI Recommendation"**
 5. Review AI's expert analysis and recommendation
 
 See **AI_RECOMMENDATION_GUIDE.md** for complete documentation.
@@ -41,8 +41,10 @@ See **AI_RECOMMENDATION_GUIDE.md** for complete documentation.
 ```
 .
 ├── app.py                          # Main Streamlit dashboard application
+├── theme.py                        # Dashboard look: CSS, chart template, HTML blocks
+├── .streamlit/config.toml          # Dark theme settings
 ├── config.py                       # Configuration and constants
-├── weather_api.py                  # OpenWeatherMap API integration
+├── weather_api.py                  # Open-Meteo weather + geocoding integration
 ├── model_utils.py                  # XGBoost model loading and prediction
 ├── energy_recommendation_agent.py  # AI-powered battery recommendation agent
 ├── best_model_exogenous.pkl        # Fine-tuned XGBoost model (trained)
@@ -63,24 +65,12 @@ See **AI_RECOMMENDATION_GUIDE.md** for complete documentation.
 ## 🚀 Quick Start (5 minutes)
 
 ### Prerequisites
-- Python 3.8+
-- Virtual environment: `.venv\Scripts\activate` (Windows) or `source .venv/bin/activate` (Linux/Mac)
-- Two API keys (both FREE tier available)
+- Python 3.12 (the pinned dependencies and the model pickle need it)
+- One free API key, only for the AI recommendations (weather needs no key)
 
-### ⚙️ Step 1: Get Your OpenWeatherMap API Key
+### ⚙️ Step 1: Weather data (nothing to do)
 
-1. **Visit** [OpenWeatherMap API](https://openweathermap.org/api)
-2. **Click** "Sign Up" → Create free account
-3. **Verify** email address
-4. **Go to** [API Keys tab](https://home.openweathermap.org/api_keys)
-5. **Copy** your default API key (starts with alphanumeric)
-6. **Save it** - you'll need it for `.env`
-
-**Free Tier Includes**:
-- 1,000 calls/day
-- 24-hour forecasts
-- Current weather data
-- Historical data
+Weather comes from [Open-Meteo](https://open-meteo.com), which is free and needs no account or key.
 
 ### ⚙️ Step 2: Get Your OpenRouter API Key (For AI Recommendations)
 
@@ -91,28 +81,18 @@ See **AI_RECOMMENDATION_GUIDE.md** for complete documentation.
 5. **Copy** the full key (starts with `sk-or-v1-`)
 6. **Save it** - you'll need it for `.env`
 
-**Free Tier Includes**:
-- Access to free models like OLMo-3.1-32B
-- First $5 monthly credits
-- Perfect for testing and demos
-
-**Alternative Models** (if primary doesn't work):
-- `nvidia/nemotron-3-nano-30b-a3b:free` - Fast, lightweight
-- `meta-llama/llama-2-70b-chat:free` - Reliable alternative
+A free account works: the agent uses free models (ending in `:free`). If the one in `.env` is busy or retired, it automatically tries the next free model.
 
 ### 📝 Step 3: Configure Environment Variables
 
-Create `.env` file in project root with your actual keys:
+Create `.env` file in project root with your key:
 
 ```env
-# OpenWeatherMap API Key (Get from: https://openweathermap.org/api)
-WEATHER_API_KEY=your_actual_openweathermap_key_here
-
 # OpenRouter API Key (Get from: https://openrouter.ai/keys)
 OPENROUTER_API_KEY=your_actual_openrouter_key_here
 
-# AI Model (use free tier models from OpenRouter)
-OPENROUTER_MODEL=allenai/olmo-3.1-32b-think:free
+# Preferred AI model (optional, any OpenRouter model id)
+OPENROUTER_MODEL=nvidia/nemotron-3.5-lightning:free
 ```
 
 **⚠️ Security**: Never commit `.env` to git - it contains sensitive credentials!
@@ -121,7 +101,7 @@ OPENROUTER_MODEL=allenai/olmo-3.1-32b-think:free
 
 ```bash
 # Create virtual environment
-python -m venv .venv
+py -3.12 -m venv .venv
 
 # Activate virtual environment
 # On Windows:
@@ -143,7 +123,7 @@ Dashboard opens at: `http://localhost:8501`
 
 **Troubleshooting**:
 - If port 8501 is busy: `streamlit run app.py --server.port 8502`
-- If API errors: Check `.env` file has correct keys with no extra spaces
+- If the AI agent errors: check `.env` has your OpenRouter key with no extra spaces
 - See **Troubleshooting** section below for more help
 
 ---
@@ -151,9 +131,9 @@ Dashboard opens at: `http://localhost:8501`
 ## 💡 How to Use
 
 ### Basic Workflow
-1. **Enter Location**: City name + country code (e.g., "Sfax", "TN")
-2. **(Optional) Enable Battery Storage**: Configure battery settings in sidebar
-3. **Click "Fetch Weather & Predict"**
+1. **Enter Location**: City name + country code in the search bar under the title (e.g., "Sfax", "TN")
+2. **(Optional) Enable Battery Storage**: open "Battery storage (optional)" under the search bar
+3. **Click "Fetch forecast"** (or press Enter)
 4. **View Results**:
    - Current conditions (temp, humidity, wind, clouds)
    - 24-hour production forecast chart
@@ -171,8 +151,8 @@ Dashboard opens at: `http://localhost:8501`
 - View available storage capacity
 
 #### 🤖 AI Energy Recommendation Agent (NEW)
-- Click **"💡 Get AI Recommendation"** to analyze weather and battery status
-- Receives recommendation: **🟢 CHARGE**, **🔴 DISCHARGE**, or **🟡 MAINTAIN**
+- Click **"Get AI Recommendation"** to analyze weather and battery status
+- Receives recommendation: **CHARGE**, **DISCHARGE**, or **MAINTAIN**
 - Reviews detailed expert analysis explaining the decision
 - Confidence level (High/Medium/Low) based on forecast certainty
 - Considers battery capacity, consumption patterns, and weather trends
@@ -182,10 +162,10 @@ Dashboard opens at: `http://localhost:8501`
 - Current solar irradiance
 - Current power production estimate
 
-#### 📈 24-Hour Production Forecast
+#### 📈 48-Hour Production Forecast
 - Predicted solar power output (kW) with trend visualization
-- High/medium/low production threshold indicators
-- Hourly granularity for detailed planning
+- High production threshold indicator
+- 3-hour steps for planning
 
 #### 🌡️ Weather Forecast
 - Temperature trends (24 hours)
@@ -195,10 +175,8 @@ Dashboard opens at: `http://localhost:8501`
 #### 📊 Statistics & Analysis
 - Average power (24h)
 - Peak power prediction + time
-- Total estimated energy (kWh)
-- Average temperature with min/max
-- Total estimated energy (kWh)
-- Average temperature with min/max
+- Total estimated energy over the next 24h (kWh)
+- Average temperature with max
 
 ---
 
@@ -251,18 +229,16 @@ To retrain the model:
 
 ### .env Variables
 ```env
-WEATHER_API_KEY=your_openweathermap_key    # Required: OpenWeatherMap API key
-OPENROUTER_API_KEY=your_openrouter_key     # Required: OpenRouter API key (for AI recommendations)
-OPENROUTER_MODEL=allenai/olmo-3.1-32b-think:free  # LLM model for AI agent
+OPENROUTER_API_KEY=your_openrouter_key                 # Required for AI recommendations
+OPENROUTER_MODEL=nvidia/nemotron-3.5-lightning:free    # Optional preferred model
 ```
 
-### Model Configuration (config.py)
-- `WEATHER_API_BASE_URL` - OpenWeatherMap current weather endpoint
-- `WEATHER_FORECAST_URL` - OpenWeatherMap forecast endpoint
+### Configuration (config.py, weather_api.py, energy_recommendation_agent.py)
 - `MODEL_PATH` - Path to trained model file
 - `FEATURE_COLUMNS_EXOGENOUS` - Features expected by model
-- `OPENROUTER_API_KEY` - API key for AI recommendations
-- `OPENROUTER_MODEL` - LLM model identifier
+- `OPENROUTER_API_KEY` / `OPENROUTER_MODEL` - AI agent key and preferred model
+- `GEOCODE_URL` / `FORECAST_URL` (weather_api.py) - Open-Meteo endpoints
+- `FREE_MODELS` (energy_recommendation_agent.py) - free fallback models, tried in order
 
 ### Thresholds
 - `IRRADIATION_THRESHOLD_HIGH` = 500 W/m²
@@ -277,11 +253,11 @@ OPENROUTER_MODEL=allenai/olmo-3.1-32b-think:free  # LLM model for AI agent
 |-----------|-----------|
 | **Frontend** | Streamlit 1.28.1 |
 | **ML Model** | XGBoost 2.0.3 |
-| **AI Engine** | OpenRouter.ai + OLMo-3.1-32B LLM |
+| **AI Engine** | OpenRouter.ai, free LLMs with fallback |
 | **Data Processing** | Pandas, NumPy, Scikit-learn |
 | **Visualization** | Plotly 5.18.0 |
-| **Weather API** | OpenWeatherMap REST API |
-| **Python Version** | 3.8+ |
+| **Weather API** | Open-Meteo (forecast + geocoding, no key) |
+| **Python Version** | 3.12 |
 
 ---
 
@@ -302,29 +278,23 @@ Install all: `pip install -r requirements.txt`
 
 ## 🚨 Troubleshooting
 
-### "Weather API Error: 404"
+### "Location not found"
 **Solution**: Check city spelling (e.g., use "Hammamet" not "hammemet")
-- Try major cities first (Sfax, Tunis, Sousse)
-- Use 2-letter country code (TN for Tunisia, FR for France)
+- Use the 2-letter country code (TN for Tunisia, FR for France)
 
 ### "Model not loaded"
 **Solution**: Ensure `best_model_exogenous.pkl` exists in project root
 - Check file exists: `ls *.pkl`
 - Retrain if missing using `notebooks/model_training.ipynb`
 
-### "WEATHER_API_KEY not set"
-**Solution**: 
-1. Get free key from [OpenWeatherMap](https://openweathermap.org/api)
-2. Create `.env` file with: `WEATHER_API_KEY=your_key_here`
-3. Restart app: `streamlit run app.py`
-
 ### "AI Recommendation not working"
 **Solution**:
 1. Get free OpenRouter API key from [OpenRouter.ai](https://openrouter.ai)
 2. Add to `.env`: `OPENROUTER_API_KEY=your_key_here`
-3. Ensure battery storage is enabled in sidebar
+3. Ensure battery storage is enabled under the search bar
 4. Restart app: `streamlit run app.py`
-5. See **AI_RECOMMENDATION_GUIDE.md** for detailed setup
+5. "All AI models are busy": free models are rate limited, wait a minute and retry
+6. See **AI_RECOMMENDATION_GUIDE.md** for detailed setup
 
 ---
 
@@ -343,7 +313,7 @@ Built by Mohamed Adam Ghorbel.
 
 ---
 
-**Last Updated**: December 2025  
+**Last Updated**: November 2026  
 **Model Status**: ✅ Fine-tuned XGBoost with exogenous features loaded  
 **Dashboard Status**: ✅ Fully operational with AI recommendations  
 **AI Features**: ✅ OpenRouter.ai powered energy recommendations (Dec 20, 2025)
@@ -425,13 +395,13 @@ Expected Accuracy: ±0.26 kW (based on test MAE)
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Core Application | ✅ Working | Tested and validated |
-| Weather API | ✅ Working | Requires valid API key |
+| Weather API | ✅ Working | Open-Meteo, no key needed |
 | ML Model | ✅ Working | Pre-trained XGBoost |
 | AI Recommendations | ✅ NEW | OpenRouter.ai powered |
 | Battery Management | ✅ NEW | AI-optimized charging strategy |
 
 ---
 
-**Python Version**: 3.8+  
+**Python Version**: 3.12  
 **Framework**: Streamlit 1.28.1  
-**Latest Update**: December 20, 2025 - Added AI Energy Recommendation Agent
+**Latest Update**: November 2026 - New lemon-noir UI, search bar, Open-Meteo weather, free-model fallback for the AI agent
