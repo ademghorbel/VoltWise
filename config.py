@@ -8,13 +8,10 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # API Configuration
-WEATHER_API_KEY = os.getenv("WEATHER_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3.5-lightning:free")
 
-# Weather API Settings
-WEATHER_API_BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
-WEATHER_FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
+# Weather comes from Open-Meteo (no key), see weather_api.py
 
 # Model Configuration
 MODEL_PATH = "project_model.pkl"
