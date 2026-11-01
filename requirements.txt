@@ -1,4 +1,5 @@
 streamlit==1.28.1
+pyarrow<17  # pyarrow 17+ needs NumPy 2; the model pickle needs NumPy 1.26
 requests==2.31.0
 pandas==2.1.3
 numpy==1.26.2
