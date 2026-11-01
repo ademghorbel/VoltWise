@@ -22,47 +22,20 @@ from config import (
 from weather_api import WeatherDataFetcher
 from model_utils import ModelManager, DemoPredictionEngine
 from energy_recommendation_agent import EnergyRecommendationAgent
+import theme
+from theme import ACCENT, ACCENT_SOFT, AMBER, STEEL
 
 # Page configuration
 st.set_page_config(
     page_title="Voltwise - Solar Dashboard",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# Custom CSS
-st.markdown("""
-    <style>
-    .main {
-        padding: 0rem 1rem;
-    }
-    .stMetric {
-        background-color: #f0f2f6;
-        padding: 10px;
-        border-radius: 5px;
-        margin: 10px 0;
-    }
-    .stMetric label {
-        color: #1a1a1a !important;
-        font-weight: 600 !important;
-        font-size: 14px !important;
-    }
-    .stMetric > div > div {
-        color: #0d0d0d !important;
-        font-weight: 700 !important;
-        font-size: 24px !important;
-    }
-    [data-testid="stMetricValue"] {
-        color: #0d0d0d !important;
-        font-weight: 700 !important;
-    }
-    [data-testid="stMetricLabel"] {
-        color: #1a1a1a !important;
-        font-weight: 600 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+# Red noir theme (CSS + Plotly template), see theme.py
+theme.apply_theme()
+CHART_TEMPLATE = "voltwise_noir"
 
 @st.cache_resource
 def initialize_components():
@@ -82,16 +55,6 @@ def initialize_components():
 def main():
     """Main dashboard application"""
     
-    # Header
-    logo_col, title_col = st.columns([1, 8])
-    with logo_col:
-        logo_path = Path(__file__).parent / "assets" / "logo.png"
-        if logo_path.exists():
-            st.image(str(logo_path), width=64)
-    with title_col:
-        st.title("Voltwise")
-    st.markdown("**AI-Powered Solar Energy & Battery Management Dashboard**")
-    
     # Initialize components
     model_manager, prediction_engine, model_status = initialize_components()
     
@@ -99,70 +62,45 @@ def main():
     if 'dashboard_initialized' not in st.session_state:
         st.session_state['dashboard_initialized'] = False
     
-    # Sidebar configuration
-    st.sidebar.title("⚙️ Settings")
-    st.sidebar.divider()
+    # Header
+    if 'current_prediction' in st.session_state:
+        place = f"{st.session_state.get('city_input', 'Sfax')}, {st.session_state.get('country_input', 'TN')}"
+        theme.hero(True, f"Live forecast · {place}", compact=True)
+    else:
+        theme.hero(model_manager.model is not None, model_status)
     
-    # Location input
-    st.sidebar.subheader("📍 Location")
-    col1, col2 = st.sidebar.columns([3, 1])
-    with col1:
-        city = st.text_input("City Name", value="Sfax", key="city_input").strip()
-    with col2:
-        country = st.text_input("Country Code", value="TN", max_chars=2, key="country_input").strip().upper()
-    
-    # Battery Storage Configuration
-    st.sidebar.subheader("🔋 Battery Storage")
-    has_battery = st.sidebar.checkbox("Enable Battery Storage", value=False, key="has_battery")
-    
-    if has_battery:
-        battery_capacity = st.sidebar.number_input(
-            "Battery Capacity (kWh)",
-            min_value=1.0,
-            max_value=100.0,
-            value=10.0,
-            step=0.5,
-            key="battery_capacity"
-        )
-        battery_level = st.sidebar.slider(
-            "Current Battery Level (%)",
-            min_value=0,
-            max_value=100,
-            value=50,
-            step=5,
-            key="battery_level"
-        )
-        daily_consumption = st.sidebar.number_input(
-            "Daily Consumption (kWh)",
-            min_value=1.0,
-            max_value=200.0,
-            value=20.0,
-            step=1.0,
-            key="daily_consumption"
-        )
+    # Location search bar under the hero. A form, so pressing Enter fetches too.
+    _, mid, _ = st.columns([1, 3, 1])
+    with mid:
+        with st.form("location_form", clear_on_submit=False):
+            col_city, col_code, col_go = st.columns([4.6, 1.2, 2.6])
+            with col_city:
+                city = st.text_input("City", value="Sfax", key="city_input",
+                                     placeholder="City, e.g. Sfax", label_visibility="collapsed").strip()
+            with col_code:
+                country = st.text_input("Country code", value="TN", max_chars=2, key="country_input",
+                                        placeholder="TN", label_visibility="collapsed").strip().upper()
+            with col_go:
+                if st.form_submit_button("Fetch forecast  →", use_container_width=True):
+                    st.session_state['fetch_data'] = True
         
-        # Calculate actual battery level in kWh
-        battery_current_kwh = (battery_level / 100) * battery_capacity
-        
-        st.sidebar.info(
-            f"**Battery Status:**\n"
-            f"- Capacity: {battery_capacity} kWh\n"
-            f"- Current: {battery_current_kwh:.2f} kWh\n"
-            f"- Available: {battery_capacity - battery_current_kwh:.2f} kWh"
-        )
-    
-    st.sidebar.divider()
-    
-    # Model status
-    st.sidebar.subheader("🤖 Model Status")
-    st.sidebar.info(f"Status: {model_status}")
-    
-    # Fetch button
-    if st.sidebar.button("🔄 Fetch Weather & Predict", use_container_width=True):
-        st.session_state['fetch_data'] = True
-    
-    # Main content
-    st.divider()
+        # Battery settings, tucked away under the bar
+        with st.expander("Battery storage (optional)"):
+            has_battery = st.checkbox("I have battery storage", value=False, key="has_battery")
+            if has_battery:
+                b1, b2, b3 = st.columns(3)
+                with b1:
+                    battery_capacity = st.number_input("Capacity (kWh)", min_value=1.0, max_value=100.0,
+                                                       value=10.0, step=0.5, key="battery_capacity")
+                with b2:
+                    battery_level = st.slider("Current level (%)", min_value=0, max_value=100,
+                                              value=50, step=5, key="battery_level")
+                with b3:
+                    daily_consumption = st.number_input("Daily use (kWh)", min_value=1.0, max_value=200.0,
+                                                        value=20.0, step=1.0, key="daily_consumption")
+                battery_current_kwh = (battery_level / 100) * battery_capacity
+                st.caption(f"{battery_current_kwh:.2f} kWh stored · "
+                           f"{battery_capacity - battery_current_kwh:.2f} kWh free of {battery_capacity} kWh")
     
     # Check if data should be fetched
     if st.session_state.get('fetch_data', False):
@@ -174,7 +112,7 @@ def main():
                 
                 if current_result['status'] == 'error':
                     error_msg = current_result.get('message', 'Unknown error')
-                    st.error(f"❌ Weather API Error: {error_msg}")
+                    st.error(f"Weather data error: {error_msg}")
                     
                     # Provide helpful diagnostics
                     if '404' in error_msg:
@@ -185,9 +123,9 @@ def main():
                                 "3. Try just the city name without country code\n"
                                 "4. Common Tunisia cities: Sfax, Tunis, Sousse, Hammamet")
                     elif '401' in error_msg:
-                        st.error("Invalid WEATHER_API_KEY - check your .env file")
+                        st.error("The weather service refused the request, try again in a moment")
                     else:
-                        st.info("Please check your WEATHER_API_KEY in the .env file")
+                        st.info("Check your internet connection and try again")
                     return
                 
                 # Extract data
@@ -224,7 +162,7 @@ def main():
             
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
-                st.info("Make sure you have set WEATHER_API_KEY in your .env file")
+                st.info("Check your internet connection and try again")
                 return
     
     # Display results if data is available
@@ -236,7 +174,8 @@ def main():
         current_formatted = st.session_state['current_formatted']
         
         # Current Weather Section
-        st.subheader("🌤️ Current Conditions & Solar Output")
+        theme.section("Right now", "Current conditions & <span>solar output</span>",
+                      f"{current_weather['condition']} · {current_weather['description']}")
         
         col1, col2, col3, col4, col5 = st.columns(5)
         
@@ -244,7 +183,7 @@ def main():
             st.metric(
                 "Temperature",
                 f"{current_weather['temperature']:.1f}°C",
-                delta=f"Feels like optimal" if 15 <= current_weather['temperature'] <= 35 else "⚠️ Suboptimal"
+                delta="Optimal" if 15 <= current_weather['temperature'] <= 35 else "⚠️ Suboptimal"
             )
         
         with col2:
@@ -275,13 +214,10 @@ def main():
                 delta="High" if current_prediction > 1.0 else "Low"
             )
         
-        # Weather Description
-        st.info(f"🌤️ **Condition:** {current_weather['condition']} - {current_weather['description']}")
-        
         st.divider()
-        
+
         # Predictions & Forecast
-        st.subheader("📈 24-Hour Solar Production Forecast")
+        theme.section("Forecast", "Solar production, <span>next 48 hours</span>")
         
         # Prepare forecast dataframe
         forecast_df = pd.DataFrame({
@@ -300,35 +236,36 @@ def main():
             y=forecast_df['Predicted Power (kW)'],
             mode='lines+markers',
             name='Predicted Power',
-            line=dict(color='#FDB462', width=3),
-            marker=dict(size=8),
+            line=dict(color=ACCENT, width=2.5, shape='spline'),
+            marker=dict(size=6, color='#000', line=dict(color=ACCENT, width=2)),
             fill='tozeroy',
-            fillcolor='rgba(253, 180, 98, 0.2)'
+            fillcolor=ACCENT_SOFT
         ))
-        
+
         # Add threshold lines
         fig_power.add_hline(
             y=IRRADIATION_THRESHOLD_HIGH/400,
-            line_dash="dash",
-            line_color="green",
-            annotation_text="High Production",
-            annotation_position="right"
+            line_dash="dot",
+            line_color="rgba(255,255,255,0.35)",
+            annotation_text="High production",
+            annotation_position="top right",
+            annotation_font_color="#a1a1aa"
         )
-        
+
         fig_power.update_layout(
-            title="Solar Power Production Forecast",
+            title="Predicted PV power",
             xaxis_title="Time",
             yaxis_title="Power (kW)",
             hovermode='x unified',
-            height=400,
-            template="plotly_white",
-            showlegend=True
+            height=420,
+            template=CHART_TEMPLATE,
+            showlegend=False
         )
         
         st.plotly_chart(fig_power, use_container_width=True)
         
         # Forecast table
-        st.subheader("📊 Detailed Forecast Table")
+        theme.section("Data", "Detailed forecast")
         display_df = forecast_df.copy()
         display_df['Time'] = display_df['Time'].dt.strftime('%Y-%m-%d %H:%M')
         display_df['Predicted Power (kW)'] = display_df['Predicted Power (kW)'].round(3)
@@ -340,17 +277,17 @@ def main():
         st.divider()
         
         # Power Analysis
-        st.subheader("⚡ Power Production Analysis")
+        theme.section("Analysis", "Power <span>production</span>")
         display_simple_analysis(current_prediction, forecast_predictions, current_formatted)
         
         st.divider()
         
         # AI-Powered Battery Recommendation Agent
         if st.session_state.get('has_battery', False) and OPENROUTER_API_KEY:
-            st.subheader("🤖 AI Energy Recommendation Agent")
-            st.markdown("*Expert analysis using OpenRouter API Agent with persona prompting*")
-            
-            if st.button("💡 Get AI Recommendation", use_container_width=True, key="get_recommendation"):
+            theme.section("AI agent", "Battery <span>recommendation</span>",
+                          "Expert analysis by an OpenRouter agent with persona prompting")
+
+            if st.button("Get AI Recommendation  →", use_container_width=True, key="get_recommendation"):
                 with st.spinner("🔍 Analyzing forecast data and generating recommendation..."):
                     try:
                         # Initialize the recommendation agent
@@ -379,7 +316,7 @@ def main():
                         
                     except Exception as e:
                         st.error(f"❌ Error generating recommendation: {str(e)}")
-                        st.info("Make sure you have set the GEMINI_API_KEY in your .env file")
+                        st.info("Make sure you have set the OPENROUTER_API_KEY in your .env file")
             
             # Display recommendation if available
             if 'recommendation_result' in st.session_state:
@@ -392,34 +329,26 @@ def main():
                     action = recommendation.get('action', 'MAINTAIN')
                     confidence = recommendation.get('confidence', 'Medium')
                     
-                    col1, col2, col3 = st.columns(3)
-                    
+                    action_text = {
+                        "CHARGE": "Charge battery",
+                        "DISCHARGE": "Discharge battery",
+                    }.get(action, "Maintain status")
+                    # Solid red banner for an action to take, quiet banner for "maintain"
+                    banner_cls = "vw-banner calm" if action not in ("CHARGE", "DISCHARGE") else "vw-banner"
+
+                    col1, col2, col3 = st.columns([2, 1, 1])
+
                     with col1:
-                        # Color code based on action
-                        if action == "CHARGE":
-                            color = "🟢"
-                            action_text = "CHARGE BATTERY"
-                        elif action == "DISCHARGE":
-                            color = "🔴"
-                            action_text = "DISCHARGE BATTERY"
-                        else:
-                            color = "🟡"
-                            action_text = "MAINTAIN STATUS"
-                        
-                        st.markdown(f"### {color} {action_text}")
-                    
+                        st.markdown(f'<div class="{banner_cls}"><div class="k">Recommended action</div>'
+                                    f'<div class="v">{action_text}</div></div>', unsafe_allow_html=True)
+
                     with col2:
                         st.metric("Confidence Level", confidence)
-                    
+
                     with col3:
                         st.metric("Timestamp", rec['timestamp'][:10])
-                    
-                    st.divider()
-                    
-                    # Display full analysis
-                    st.subheader("📋 Expert Analysis")
-                    
-                    with st.expander("View Full AI Analysis", expanded=True):
+
+                    with st.expander("Full AI analysis", expanded=True):
                         analysis_text = recommendation.get('full_analysis', '')
                         # Always show the full analysis - this is what the AI actually said
                         if analysis_text:
@@ -457,7 +386,7 @@ def main():
         
         elif st.session_state.get('has_battery', False) and not OPENROUTER_API_KEY:
             st.warning(
-                "🔑 **OpenRouter API Key Required**\n\n"
+                "**OpenRouter API Key Required**\n\n"
                 "To enable AI-powered recommendations, please add:\n"
                 "`OPENROUTER_API_KEY=your_key_here` to your `.env` file\n"
                 "and restart the application"
@@ -466,7 +395,7 @@ def main():
         st.divider()
         
         # Weather Forecast Visualization
-        st.subheader("🌡️ Weather Forecast")
+        theme.section("Weather", "What the sky is <span>doing</span>")
         
         col1, col2 = st.columns(2)
         
@@ -477,16 +406,18 @@ def main():
                 y=forecast_df['Temperature (°C)'],
                 mode='lines+markers',
                 name='Temperature',
-                line=dict(color='#FF6B6B'),
-                fill='tozeroy'
+                line=dict(color=AMBER, width=2, shape='spline'),
+                marker=dict(size=5),
+                fill='tozeroy',
+                fillcolor='rgba(245, 177, 76, 0.10)'
             ))
             fig_temp.update_layout(
-                title="Temperature Forecast",
+                title="Temperature",
                 xaxis_title="Time",
                 yaxis_title="Temperature (°C)",
                 hovermode='x unified',
                 height=350,
-                template="plotly_white"
+                template=CHART_TEMPLATE
             )
             st.plotly_chart(fig_temp, use_container_width=True)
         
@@ -497,21 +428,23 @@ def main():
                 y=forecast_df['Cloud Coverage (%)'],
                 mode='lines+markers',
                 name='Cloud Coverage',
-                line=dict(color='#4ECDC4'),
-                fill='tozeroy'
+                line=dict(color=STEEL, width=2, shape='spline'),
+                marker=dict(size=5),
+                fill='tozeroy',
+                fillcolor='rgba(122, 162, 200, 0.10)'
             ))
             fig_clouds.update_layout(
-                title="Cloud Coverage Forecast",
+                title="Cloud coverage",
                 xaxis_title="Time",
                 yaxis_title="Coverage (%)",
                 hovermode='x unified',
                 height=350,
-                template="plotly_white"
+                template=CHART_TEMPLATE
             )
             st.plotly_chart(fig_clouds, use_container_width=True)
         
         # Summary Statistics
-        st.subheader("📊 Statistics")
+        theme.section("Summary", "Statistics")
         
         col1, col2, col3, col4 = st.columns(4)
         
@@ -530,7 +463,8 @@ def main():
             )
         
         with col3:
-            total_energy = sum(forecast_predictions) * 3 / 1000  # 3-hour intervals
+            # Predictions are in kW at 3-hour steps: first 8 steps = 24h, kW x 3h = kWh
+            total_energy = sum(forecast_predictions[:8]) * 3
             st.metric(
                 "Est. Energy (24h)",
                 f"{total_energy:.2f} kWh"
@@ -546,72 +480,35 @@ def main():
 
     
     else:
-        # Initial state - Setup Guide
-        st.success("✨ Welcome to Voltwise Dashboard!")
+        # Initial state: what the dashboard does, plus a real check of the setup
+        theme.section("Get started", "One dashboard for your <span>solar system</span>",
+                      "Type your city in the search bar above, then hit Fetch forecast.")
         
-        st.markdown("""
-        ### 🚀 Quick Start Guide
+        model_ok = model_manager.model is not None
+        status = (theme.chip("Weather: Open-Meteo, no key needed", True)
+                  + theme.chip("OpenRouter API key" if OPENROUTER_API_KEY else "OpenRouter API key missing", bool(OPENROUTER_API_KEY))
+                  + theme.chip("XGBoost model loaded" if model_ok else "Demo mode, no model", model_ok))
+        steps = ('<div class="vw-steps">'
+                 '<div class="vw-step"><b>01</b>Type your city and country code above</div>'
+                 '<div class="vw-step"><b>02</b>Optionally enable battery storage</div>'
+                 '<div class="vw-step"><b>03</b>Fetch weather and generate the forecast</div>'
+                 f'</div><div class="vw-status">{status}</div>')
         
-        Your solar energy forecasting dashboard is ready. Follow these steps to get started:
-        """)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("⚙️ Step 1: Configure Settings")
-            st.markdown("""
-            - **📍 Location**: Enter your city name and country code
-            - **🔋 Battery**: Enable battery storage (optional)
-            - Check **Model Status** on the sidebar
-            """)
-        
-        with col2:
-            st.subheader("🔄 Step 2: Fetch Data")
-            st.markdown("""
-            - Click the **"Fetch Weather & Predict"** button
-            - Dashboard will load real-time weather data
-            - AI predictions will be generated automatically
-            """)
-        
-        st.divider()
-        
-        st.subheader("📊 What You'll See After Fetching:")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.markdown("""
-            ### 🌤️ Current Conditions
-            - Temperature & Humidity
-            - Wind Speed & Cloud Cover
-            - Solar Production (kW)
-            """)
-        
-        with col2:
-            st.markdown("""
-            ### 📈 24-Hour Forecast
-            - Hourly power predictions
-            - Weather conditions
-            - Production analysis
-            """)
-        
-        with col3:
-            st.markdown("""
-            ### 🤖 AI Recommendations
-            - Smart battery management
-            - Charge/discharge advice
-            - Energy optimization
-            """)
-        
-        st.divider()
-        st.info("""
-        **✓ Setup Status:**
-        - Weather API: ✅ Configured
-        - OpenRouter API: ✅ Configured
-        - Model: {} 
-        
-        You're ready to start! Click the button in the sidebar →
-        """.format(model_status))
+        st.markdown('<div class="vw-bento">'
+            + theme.card("sun", "Solar production forecasting",
+                         "Live Open-Meteo conditions go through a fine-tuned XGBoost model trained on "
+                         "real PV plant data from Sfax, giving you power output now and over the next two days.",
+                         size="big", extra=steps)
+            + theme.card("chart", "48-hour outlook",
+                         "Predicted power, temperature and cloud cover in one view, with a detailed table.",
+                         size="wide", glow=STEEL)
+            + theme.card("battery", "Battery aware",
+                         "Track capacity, charge level and daily consumption.", glow=AMBER)
+            + theme.card("bot", "AI recommendations",
+                         "An OpenRouter agent tells you when to charge or discharge.")
+            + '</div>', unsafe_allow_html=True)
+    
+    theme.footer()
 
 def display_simple_analysis(current_prediction: float, forecast_predictions: list, current_formatted: dict):
     """Display simple power production analysis"""
@@ -633,38 +530,40 @@ def display_simple_analysis(current_prediction: float, forecast_predictions: lis
     with col3:
         st.metric("Peak Forecast", f"{max_forecast:.2f} kW")
     
-    # Analysis details
-    st.subheader("📊 Production Analysis")
-    
+    st.write("")
     col1, col2 = st.columns(2)
     
+    def rows(items):
+        return "".join(f'<div class="vw-row"><span>{k}</span><span>{v}</span></div>' for k, v in items)
+    
     with col1:
-        st.markdown(f"""
-        **Current Conditions:**
-        - Irradiation: {irradiation:.0f} W/m²
-        - Cloud Cover: {cloud_cover:.0f}%
-        - Temperature: {current_formatted.get('Température ambiante(℃)', 'N/A')}°C
-        - Wind Speed: {current_formatted.get('Vitesse vent(m/s)', 'N/A')} m/s
-        """)
+        st.markdown('<div class="vw-list"><div class="k">Current conditions</div>' + rows([
+            ("Irradiation", f"{irradiation:.0f} W/m²"),
+            ("Cloud cover", f"{cloud_cover:.0f}%"),
+            ("Temperature", f"{current_formatted.get('Température ambiante(℃)', 0):.1f}°C"),
+            ("Wind speed", f"{current_formatted.get('Vitesse vent(m/s)', 0):.1f} m/s"),
+        ]) + '</div>', unsafe_allow_html=True)
     
     with col2:
         # Simple recommendation based on irradiance
-        if irradiation > IRRADIATION_THRESHOLD_HIGH:
-            status = "🟢 High Production"
+        if irradiation <= 0:
+            status = "No production"
+            advice = "Night time, no sunlight"
+        elif irradiation > IRRADIATION_THRESHOLD_HIGH:
+            status = "High production"
             advice = "Excellent conditions for power generation"
         elif irradiation > IRRADIATION_THRESHOLD_MEDIUM:
-            status = "🟡 Medium Production"
+            status = "Medium production"
             advice = "Moderate conditions, some cloud cover expected"
         else:
-            status = "🔴 Low Production"
+            status = "Low production"
             advice = "Low irradiance, overcast conditions"
         
-        st.markdown(f"""
-        **Production Status:**
-        - {status}
-        - {advice}
-        - Next 24h Average: {avg_forecast:.2f} kW
-        """)
+        st.markdown('<div class="vw-list"><div class="k">Production status</div>' + rows([
+            ("Status", status),
+            ("Outlook", advice),
+            ("Next 24h average", f"{avg_forecast:.2f} kW"),
+        ]) + '</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()

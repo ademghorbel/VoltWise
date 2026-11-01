@@ -37,7 +37,7 @@ wheels/
 *~
 
 # Streamlit
-.streamlit/
+.streamlit/secrets.toml
 streamlit_cache/
 
 # OS
