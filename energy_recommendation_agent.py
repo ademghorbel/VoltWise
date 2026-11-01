@@ -3,6 +3,7 @@ Energy Production Forecast Analysis & Battery Management Recommendation Agent
 Uses Z AI API with persona prompting for expert recommendations
 """
 
+import re
 import requests
 from typing import Dict, List
 from datetime import datetime
@@ -12,6 +13,16 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv(override=True)
+
+
+FREE_MODELS = [
+    "nvidia/nemotron-3.5-lightning:free",
+    "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "thinkingmachines/inkling:free",
+]
+RETRYABLE = {404, 408, 429, 500, 502, 503, 504}
 
 class EnergyRecommendationAgent:
     """
@@ -29,7 +40,11 @@ class EnergyRecommendationAgent:
         """
         self.api_key = api_key
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
-        self.model = os.getenv("OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
+        # Preferred model from .env first, then free models to fall back on when one is
+        # busy (429), retired (404) or returns an empty answer.
+        preferred = os.getenv("OPENROUTER_MODEL", "").strip()
+        self.models = [m for m in [preferred] if m] + [m for m in FREE_MODELS if m != preferred]
+        self.model = self.models[0]
         
         # System prompt that establishes the persona and expertise
         self.system_prompt = """You are an expert energy production analyst with deep expertise in:
@@ -133,45 +148,39 @@ Include: weather conditions, battery level, consumption risk."""
                 "X-Title": "Voltwise"
             }
             
-            payload = {
-                "model": self.model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": self.system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": analysis_prompt
-                    }
-                ],
-                "temperature": 0.7,
-                "max_tokens": 2000
-            }
+            messages = [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": analysis_prompt},
+            ]
             
-            response = requests.post(
-                self.base_url,
-                headers=headers,
-                json=payload,
-                timeout=30
-            )
+            analysis_text, errors = "", []
+            for model in self.models:
+                payload = {"model": model, "messages": messages, "temperature": 0.7, "max_tokens": 6000,
+                           # thinking models: keep the thinking short and out of the answer
+                           "reasoning": {"effort": "low", "exclude": True}}
+                try:
+                    response = requests.post(self.base_url, headers=headers, json=payload, timeout=60)
+                except requests.exceptions.RequestException as e:
+                    errors.append(f"{model}: {e.__class__.__name__}")
+                    continue
+                if response.status_code in RETRYABLE:
+                    errors.append(f"{model}: HTTP {response.status_code}")
+                    continue
+                response.raise_for_status()
+                message = response.json()['choices'][0]['message']
+                # Only the real answer counts; a thinking-only reply moves on to the next model
+                analysis_text = message.get('content') or ''
+                if analysis_text.strip():
+                    self.model = model
+                    break
+                errors.append(f"{model}: empty answer")
             
-            response.raise_for_status()
-            result = response.json()
-            
-            # Debug: Print what we got
-            print(f"DEBUG API Response: {result}")
-            
-            # Get the message content - some models use 'content' field, reasoning-enabled models may have 'reasoning'
-            message = result['choices'][0]['message']
-            analysis_text = message.get('content', '')
-            
-            # If content is empty but reasoning exists (for thinking models), use that as analysis
-            if not analysis_text and 'reasoning' in message:
-                analysis_text = message.get('reasoning', '')
-                print(f"DEBUG: Using reasoning field as analysis text (model uses thinking)")
-            
-            print(f"DEBUG Analysis Text length: {len(analysis_text) if analysis_text else 0} chars")
+            if not analysis_text.strip():
+                return {
+                    "status": "error",
+                    "message": "All AI models are busy right now, try again in a minute. (" + "; ".join(errors) + ")",
+                    "recommendation": None
+                }
             
             # Parse the response to extract structured recommendation
             recommendation = self._parse_recommendation(analysis_text)
@@ -249,24 +258,23 @@ Include: weather conditions, battery level, consumption risk."""
         text = analysis_text
         text_upper = text.upper()
         
-        # Parse ACTION - look for "RECOMMENDATION:" format
+        # Parse ACTION from the "RECOMMENDATION:" line. Whole words only, since
+        # "DISCHARGE" contains "CHARGE".
         lines = text.split('\n')
+        action_re = re.compile(r'\b(DISCHARGE|CHARGE|MAINTAIN)\b')
+        found = None
         for line in lines:
-            if "RECOMMENDATION:" in line.upper():
-                if "CHARGE" in line.upper():
-                    recommendation["action"] = "CHARGE"
-                elif "DISCHARGE" in line.upper():
-                    recommendation["action"] = "DISCHARGE"
-                elif "MAINTAIN" in line.upper():
-                    recommendation["action"] = "MAINTAIN"
-                break
+            if "RECOMMENDATION" in line.upper():
+                m = action_re.search(line.upper())
+                if m:
+                    found = m.group(1)
+                    break
         
-        # If no "RECOMMENDATION:" found, try other patterns
-        if recommendation["action"] == "MAINTAIN":
-            if "CHARGE" in text_upper and text_upper.find("CHARGE") < text_upper.find("DISCHARGE") if "DISCHARGE" in text_upper else True:
-                recommendation["action"] = "CHARGE"
-            elif "DISCHARGE" in text_upper:
-                recommendation["action"] = "DISCHARGE"
+        # No "RECOMMENDATION:" line: use the first action word in the text
+        if found is None:
+            m = action_re.search(text_upper)
+            found = m.group(1) if m else "MAINTAIN"
+        recommendation["action"] = found
         
         # Parse CONFIDENCE - look for "CONFIDENCE:" format
         for line in lines:
