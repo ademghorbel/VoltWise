@@ -517,7 +517,7 @@ def display_simple_analysis(current_prediction: float, forecast_predictions: lis
     avg_forecast = np.mean(forecast_predictions) if forecast_predictions else 0
     max_forecast = np.max(forecast_predictions) if forecast_predictions else 0
     irradiation = current_formatted.get('Irradiation transitoire pente(W/㎡)', 0)
-    cloud_cover = current_formatted.get('Cloud Coverage (%)', 0)
+    cloud_cover = current_formatted.get('cloud_coverage', 0)
     
     col1, col2, col3 = st.columns([1, 1, 1])
     

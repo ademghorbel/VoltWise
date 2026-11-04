@@ -9,7 +9,13 @@ from typing import Dict, List, Tuple
 
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
-HOURLY_VARS = "temperature_2m,relative_humidity_2m,wind_speed_10m,cloud_cover,weather_code,precipitation"
+HOURLY_VARS = ("temperature_2m,relative_humidity_2m,wind_speed_10m,cloud_cover,weather_code,precipitation,"
+               "global_tilted_irradiance")
+# Irradiance on a tilted panel, like the model's "Irradiation transitoire pente" feature
+PANEL_TILT = 30      # degrees
+PANEL_AZIMUTH = 0    # 0 = facing the equator (south in the northern hemisphere)
+# Forecast models to average (European, American, German, French); averaging smooths each one's bias
+MODELS = ["ecmwf_ifs025", "gfs_seamless", "icon_seamless", "meteofrance_seamless"]
 
 # WMO weather codes -> (condition, description), same style as before
 WMO_CODES = {
@@ -29,6 +35,26 @@ WMO_CODES = {
 
 def _condition(code) -> Tuple[str, str]:
     return WMO_CODES.get(int(code or 0), ("Clouds", "unknown"))
+
+
+def _average_models(hourly: Dict) -> Dict:
+    """Merge per-model hourly columns (e.g. temperature_2m_gfs_seamless) into one averaged column per variable.
+    Numbers are averaged over the models that have a value; the weather code is the one most models agree on."""
+    merged = {'time': hourly['time']}
+    for var in HOURLY_VARS.split(','):
+        cols = [hourly[f"{var}_{m}"] for m in MODELS if f"{var}_{m}" in hourly]
+        values = []
+        for i in range(len(hourly['time'])):
+            vals = [c[i] for c in cols if c[i] is not None]
+            if not vals:
+                values.append(None)
+            elif var == 'weather_code':
+                # most common code; on a tie, the more severe (higher) one
+                values.append(max(set(vals), key=lambda v: (vals.count(v), v)))
+            else:
+                values.append(round(sum(vals) / len(vals), 1))
+        merged[var] = values
+    return merged
 
 
 class WeatherDataFetcher:
@@ -60,12 +86,25 @@ class WeatherDataFetcher:
         lat, lon = self._locate(city, country_code)
         params = {
             'latitude': lat, 'longitude': lon,
-            'current': HOURLY_VARS, 'hourly': HOURLY_VARS,
+            'current': 'temperature_2m',  # only used for the local "now" time
+            'hourly': HOURLY_VARS, 'models': ','.join(MODELS),
             'wind_speed_unit': 'ms', 'timezone': 'auto', 'forecast_days': forecast_days,
+            'tilt': PANEL_TILT, 'azimuth': PANEL_AZIMUTH if lat >= 0 else 180,
         }
         response = requests.get(FORECAST_URL, params=params, timeout=10)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+
+        # Open-Meteo returns one column per model and its "current" block uses a single model,
+        # so build both from the model-averaged hourly data (current = nearest hour)
+        hourly = _average_models(data['hourly'])
+        now = datetime.fromisoformat(data['current']['time'])
+        nearest = (now + timedelta(minutes=30)).replace(minute=0)
+        i = hourly['time'].index(nearest.strftime('%Y-%m-%dT%H:%M'))
+        data['hourly'] = hourly
+        data['current'] = {'time': data['current']['time'],
+                           **{var: hourly[var][i] for var in HOURLY_VARS.split(',')}}
+        return data
     
     def get_current_weather(self, city: str, country_code: str = "") -> Dict:
         """
@@ -90,6 +129,7 @@ class WeatherDataFetcher:
                     'description': description,
                     'condition': condition,
                     'clouds': cur['cloud_cover'],
+                    'irradiance': cur.get('global_tilted_irradiance'),
                     'timestamp': datetime.fromisoformat(cur['time'])
                 }
             }
@@ -129,6 +169,7 @@ class WeatherDataFetcher:
                     'condition': condition,
                     'clouds': h['cloud_cover'][i],
                     'rain': h['precipitation'][i] or 0,
+                    'irradiance': (h.get('global_tilted_irradiance') or [None] * len(h['time']))[i],
                 })
             
             return {
@@ -197,11 +238,10 @@ class WeatherDataFetcher:
             'day_Wednesday': 1 if day_name == 'Wednesday' else 0,
         }
         
-        # Estimate irradiation
-        irradiation = self.estimate_irradiation(
-            weather_data['clouds'],
-            hour
-        )
+        # Forecast irradiance from Open-Meteo, or a rough estimate from cloud cover if missing
+        irradiation = weather_data.get('irradiance')
+        if irradiation is None:
+            irradiation = self.estimate_irradiation(weather_data['clouds'], hour)
         
         formatted_data = {
             'hour': hour,
